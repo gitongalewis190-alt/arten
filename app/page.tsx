@@ -31,7 +31,7 @@ export default function Home() {
 
   useEffect(() => {
     if (!supabase) return
-    supabase.auth.getUser().then(({ data }) => {
+    supabase.auth.getUser().then(async ({ data }) => {
       if (!data.user) window.location.replace('/auth')
       else {
         setUserEmail(data.user.email ?? null)
