@@ -13,6 +13,7 @@ export default function AuthPage() {
   const [messageTone, setMessageTone] = useState<'info' | 'error' | 'success'>('info')
   const [busy, setBusy] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [rateLimited, setRateLimited] = useState(false)
 
   useEffect(() => {
     const error = new URLSearchParams(window.location.search).get('error')
@@ -23,7 +24,8 @@ export default function AuthPage() {
   function describeAuthError(error: { message?: string; status?: number }) {
     const raw = error.message?.toLowerCase() ?? ''
     if (raw.includes('email not confirmed')) return 'Your email is not confirmed yet. Open the confirmation email, then return here and sign in.'
-    if (raw.includes('rate limit') || error.status === 429) return 'Too many attempts. Wait a moment before trying again.'
+    if (raw.includes('email rate limit') || raw.includes('over_email_send_rate_limit')) return 'Supabase has temporarily paused confirmation emails for this address. Do not keep pressing Create account. Wait about an hour, then use Sign in if you already received a confirmation email.'
+    if (raw.includes('rate limit') || error.status === 429) return 'Supabase has temporarily limited email requests. Wait a moment before trying again, then use Sign in if this account already exists.'
     if (raw.includes('password') && raw.includes('6')) return 'Use a password with at least 6 characters.'
     if (raw.includes('invalid login')) return 'The email or password is incorrect. Check both and try again.'
     if (raw.includes('already registered') || raw.includes('already been registered')) return 'That email already has an ARTEN account. Switch to sign in.'
@@ -40,7 +42,11 @@ export default function AuthPage() {
       const result = mode === 'signin'
         ? await supabase.auth.signInWithPassword({ email: email.trim(), password })
         : await supabase.auth.signUp({ email: email.trim(), password, options: { emailRedirectTo: process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL ?? `${window.location.origin}/auth/callback` } })
-      if (result.error) { setMessageTone('error'); setMessage(describeAuthError(result.error)); return }
+      if (result.error) {
+        const authMessage = describeAuthError(result.error)
+        if (authMessage.toLowerCase().includes('temporarily') || authMessage.toLowerCase().includes('paused')) setRateLimited(true)
+        setMessageTone('error'); setMessage(authMessage); return
+      }
       if (mode === 'signup') { setMessageTone('success'); setMessage('Account created. Check your inbox for the confirmation link. This page will stay open until you confirm.'); return }
       setMessageTone('success'); setMessage('Signed in. Opening your private workspace…'); window.setTimeout(() => window.location.assign('/'), 650)
     } catch {
@@ -71,8 +77,9 @@ export default function AuthPage() {
           <button className="primary-action" disabled={busy}>{busy ? <><span className="auth-spinner" aria-hidden="true" />{mode === 'signin' ? 'Checking secure entry…' : 'Creating private space…'}</> : mode === 'signin' ? 'Enter ARTEN' : 'Create account'}</button>
         </form>
         {message && <div className={`auth-message auth-message-${messageTone}`} role={messageTone === 'error' ? 'alert' : 'status'}><span className="auth-status-dot" aria-hidden="true" />{message}</div>}
-        {message.toLowerCase().includes('not confirmed') && <button className="auth-resend" disabled={busy} onClick={() => void resendConfirmation()}>Resend confirmation email</button>}
-        <button type="button" className="auth-switch" onClick={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setMessage(''); setMessageTone('info') }}>{mode === 'signin' ? 'Need an account? Create one' : 'Already have an account? Sign in'}</button>
+        {message.toLowerCase().includes('not confirmed') && <button type="button" className="auth-resend" disabled={busy} onClick={() => void resendConfirmation()}>Resend confirmation email</button>}
+        {rateLimited && mode === 'signup' && <button type="button" className="auth-resend" onClick={() => { setMode('signin'); setRateLimited(false); setMessage(''); setMessageTone('info') }}>I already have an account — sign in</button>}
+        <button type="button" className="auth-switch" onClick={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setRateLimited(false); setMessage(''); setMessageTone('info') }}>{mode === 'signin' ? 'Need an account? Create one' : 'Already have an account? Sign in'}</button>
       </section>
     </main>
   )
