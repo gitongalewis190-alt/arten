@@ -39,9 +39,20 @@ export default function AuthPage() {
     setMessageTone('info')
     setMessage(mode === 'signin' ? 'Checking your secure session…' : 'Creating your private ARTEN space…')
     try {
-      const result = mode === 'signin'
+      let result = mode === 'signin'
         ? await supabase.auth.signInWithPassword({ email: email.trim(), password })
         : await supabase.auth.signUp({ email: email.trim(), password, options: { emailRedirectTo: process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL ?? `${window.location.origin}/auth/callback` } })
+
+      if (mode === 'signin' && result.error?.message.toLowerCase().includes('invalid login')) {
+        setMessage('No matching account found. Creating your ARTEN space…')
+        result = await supabase.auth.signUp({ email: email.trim(), password, options: { emailRedirectTo: process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL ?? `${window.location.origin}/auth/callback` } })
+        if (!result.error) {
+          setMessageTone('success')
+          setMessage('Your ARTEN space is ready. Check your inbox to confirm your email, then return here to sign in.')
+          return
+        }
+      }
+
       if (result.error) {
         const authMessage = describeAuthError(result.error)
         if (authMessage.toLowerCase().includes('temporarily') || authMessage.toLowerCase().includes('paused')) setRateLimited(true)
@@ -70,7 +81,7 @@ export default function AuthPage() {
       <div className="auth-glow auth-glow-pink" />
       <section className="auth-card spatial-panel">
         <div className="auth-brand"><Image src="/arten-face.png" alt="ARTEN" width={52} height={52} className="auth-avatar" /><div><p className="eyebrow">ARTEN / PRIVATE SPACE</p><p className="auth-caption">A workspace for useful intelligence.</p></div></div>
-        <div className="auth-heading"><p className="eyebrow">SECURE ENTRY</p><h1>{mode === 'signin' ? 'Welcome back.' : 'Create your space.'}</h1><p>{mode === 'signin' ? 'Sign in to continue your private ARTEN workspace.' : 'Start a private workspace for thinking, planning, and creating.'}</p></div>
+        <div className="auth-heading"><p className="eyebrow">SECURE ENTRY</p><h1>{mode === 'signin' ? 'Welcome back.' : 'Create your space.'}</h1><p>{mode === 'signin' ? 'Sign in to continue. If you are new, ARTEN will create your private space automatically.' : 'Start a private workspace for thinking, planning, and creating.'}</p></div>
         <form onSubmit={submit} className="auth-form" aria-busy={busy}>
           <label>Email<input autoComplete="email" type="email" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" /></label>
           <label>Password<div className="password-wrap"><input autoComplete={mode === 'signin' ? 'current-password' : 'new-password'} type={showPassword ? 'text' : 'password'} required minLength={6} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="At least 6 characters" /><button type="button" className="password-toggle" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? 'Hide password' : 'Show password'}>{showPassword ? 'Hide' : 'Show'}</button></div></label>
