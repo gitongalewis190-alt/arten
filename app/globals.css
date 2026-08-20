@@ -80,5 +80,6 @@ button:disabled { cursor: default; }
 .auth-resend { border: 0; background: transparent; color: var(--accent); font-size: .75rem; margin-top: .75rem; padding: 0; }
 .auth-resend:disabled { opacity: .5; }
 @keyframes auth-spin { to { transform: rotate(360deg); } }
-.auth-switch { border: 0; background: transparent; color: var(--accent); font-size: .78rem; margin-top: 1.5rem; padding: 0; }
+.guest-entry { border: 1px solid var(--border); border-radius: 999px; background: rgba(255,255,255,.05); color: var(--foreground); font-size: .78rem; margin-top: 1.1rem; padding: .7rem 1rem; }
+.auth-switch { border: 0; background: transparent; color: var(--accent); font-size: .78rem; margin-top: 1.1rem; padding: 0; }
 @media (prefers-reduced-motion: no-preference) { .spatial-panel, button { transition: transform .25s ease, box-shadow .25s ease, background .25s ease, border-color .25s ease; } .spatial-panel:hover { transform: translateY(-2px); } }

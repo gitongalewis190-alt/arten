@@ -90,6 +90,7 @@ export default function AuthPage() {
         {message && <div className={`auth-message auth-message-${messageTone}`} role={messageTone === 'error' ? 'alert' : 'status'}><span className="auth-status-dot" aria-hidden="true" />{message}</div>}
         {message.toLowerCase().includes('not confirmed') && <button type="button" className="auth-resend" disabled={busy} onClick={() => void resendConfirmation()}>Resend confirmation email</button>}
         {rateLimited && mode === 'signup' && <button type="button" className="auth-resend" onClick={() => { setMode('signin'); setRateLimited(false); setMessage(''); setMessageTone('info') }}>I already have an account — sign in</button>}
+        <button type="button" className="guest-entry" onClick={() => window.location.assign('/?guest=1')}>Continue as guest for testing</button>
         <button type="button" className="auth-switch" onClick={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setRateLimited(false); setMessage(''); setMessageTone('info') }}>{mode === 'signin' ? 'Need an account? Create one' : 'Already have an account? Sign in'}</button>
       </section>
     </main>

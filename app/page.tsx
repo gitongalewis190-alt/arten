@@ -33,8 +33,10 @@ export default function Home() {
   useEffect(() => {
     fetch('/api/ai-status').then((response) => response.json()).then((status) => setAiStatus(status)).catch(() => undefined)
     if (!supabase) return
+    const guestMode = new URLSearchParams(window.location.search).get('guest') === '1'
     supabase.auth.getUser().then(async ({ data }) => {
-      if (!data.user) window.location.replace('/auth')
+      if (!data.user && !guestMode) window.location.replace('/auth')
+      else if (!data.user && guestMode) setUserEmail(null)
       else {
         setUserEmail(data.user.email ?? null)
         const { data: conversation } = await supabase.from('conversations').select('id').eq('user_id', data.user.id).order('updated_at', { ascending: false }).limit(1).maybeSingle()
@@ -46,8 +48,8 @@ export default function Home() {
       }
     })
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session?.user) window.location.replace('/auth')
-      else setUserEmail(session.user.email ?? null)
+      if (!session?.user && !guestMode) window.location.replace('/auth')
+      else setUserEmail(session?.user?.email ?? null)
     })
     return () => listener.subscription.unsubscribe()
   }, [])
@@ -112,7 +114,7 @@ export default function Home() {
           <button className="rounded-lg p-2 text-muted-foreground hover:bg-muted md:hidden" aria-label="Open menu" onClick={() => setShowMenu(!showMenu)}><Menu /></button>
           <div className="flex items-center gap-3"><div className="size-9 overflow-hidden rounded-xl bg-accent shadow-sm"><img src="/arten-face.png" alt="ARTEN character" className="size-full object-cover" /></div><div><div className="font-semibold tracking-tight">ARTEN</div><div className="text-[11px] text-muted-foreground">{aiStatus.ready ? `${aiStatus.provider} · ${aiStatus.model}` : 'Local fallback ready'}</div></div></div>
         </div>
-        <div className="flex items-center gap-2"><button className="hidden items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted md:flex"><Clock3 className="size-4" /> History</button><button className="rounded-lg p-2 text-muted-foreground hover:bg-muted" aria-label="Settings"><Settings2 className="size-4" /></button><button className="hidden rounded-lg px-3 py-2 text-xs text-muted-foreground hover:bg-muted md:block" onClick={() => setShowAuth(!showAuth)}>{userEmail ? userEmail : 'Sign in'}</button><div className="size-8 rounded-full bg-foreground text-center text-xs leading-8 text-background">LM</div></div>
+        <div className="flex items-center gap-2"><button className="hidden items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted md:flex"><Clock3 className="size-4" /> History</button><button className="rounded-lg p-2 text-muted-foreground hover:bg-muted" aria-label="Settings"><Settings2 className="size-4" /></button><button className="hidden rounded-lg px-3 py-2 text-xs text-muted-foreground hover:bg-muted md:block" onClick={() => setShowAuth(!showAuth)}>{userEmail ? userEmail : 'Guest · Sign in'}</button><div className="size-8 rounded-full bg-foreground text-center text-xs leading-8 text-background">LM</div></div>
       </header>
       {showAuth && !userEmail && <div className="mx-auto flex max-w-[1440px] justify-end px-5 pt-3 md:px-8"><div className="flex w-full max-w-sm flex-col gap-2 rounded-xl border border-border bg-card p-3 shadow-sm"><input className="rounded-lg border border-border bg-transparent px-3 py-2 text-sm outline-none" aria-label="Account email" placeholder="Email" type="email" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} /><input className="rounded-lg border border-border bg-transparent px-3 py-2 text-sm outline-none" aria-label="Account password" placeholder="Password" type="password" value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} /><div className="flex gap-2"><button className="rounded-lg bg-foreground px-3 py-2 text-xs text-background" onClick={() => void authenticate('signin')}>Sign in</button><button className="rounded-lg border border-border px-3 py-2 text-xs" onClick={() => void authenticate('signup')}>Create account</button></div>{authMessage && <p className="text-xs text-muted-foreground">{authMessage}</p>}</div></div>}
 
