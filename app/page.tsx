@@ -28,10 +28,12 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const [userEmail, setUserEmail] = useState<string | null>(null)
+  const [aiStatus, setAiStatus] = useState<{ provider: string; ready: boolean; model: string }>({ provider: 'ollama', ready: false, model: 'llama3.2:3b' })
 
   useEffect(() => {
+    fetch('/api/ai-status').then((response) => response.json()).then((status) => setAiStatus(status)).catch(() => undefined)
     if (!supabase) return
-    supabase.auth.getUser().then(({ data }) => {
+    supabase.auth.getUser().then(async ({ data }) => {
       if (!data.user) window.location.replace('/auth')
       else {
         setUserEmail(data.user.email ?? null)
@@ -97,7 +99,7 @@ export default function Home() {
     } catch (caught) {
       const fallback = `I’m ready to help with “${content}”. Tell me the outcome you want, and I’ll help shape it into a practical next step.`
       setMessages([...nextMessages, { role: 'assistant', content: fallback }])
-      setError('Free fallback mode is active. Connect a funded model later for live AI responses.')
+      setError(aiStatus.ready ? 'ARTEN used its local model.' : 'Local intelligence mode is active. Install Ollama and load a model for full generative responses.')
     } finally {
       setIsLoading(false)
     }
@@ -108,7 +110,7 @@ export default function Home() {
       <header className="flex h-16 items-center justify-between border-b border-border/70 px-5 md:px-8">
         <div className="flex items-center gap-3">
           <button className="rounded-lg p-2 text-muted-foreground hover:bg-muted md:hidden" aria-label="Open menu" onClick={() => setShowMenu(!showMenu)}><Menu /></button>
-          <div className="flex items-center gap-3"><div className="size-9 overflow-hidden rounded-xl bg-accent shadow-sm"><img src="/arten-face.png" alt="ARTEN character" className="size-full object-cover" /></div><div><div className="font-semibold tracking-tight">ARTEN</div><div className="text-[11px] text-muted-foreground">Intelligence workspace</div></div></div>
+          <div className="flex items-center gap-3"><div className="size-9 overflow-hidden rounded-xl bg-accent shadow-sm"><img src="/arten-face.png" alt="ARTEN character" className="size-full object-cover" /></div><div><div className="font-semibold tracking-tight">ARTEN</div><div className="text-[11px] text-muted-foreground">{aiStatus.ready ? `${aiStatus.provider} · ${aiStatus.model}` : 'Local fallback ready'}</div></div></div>
         </div>
         <div className="flex items-center gap-2"><button className="hidden items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted md:flex"><Clock3 className="size-4" /> History</button><button className="rounded-lg p-2 text-muted-foreground hover:bg-muted" aria-label="Settings"><Settings2 className="size-4" /></button><button className="hidden rounded-lg px-3 py-2 text-xs text-muted-foreground hover:bg-muted md:block" onClick={() => setShowAuth(!showAuth)}>{userEmail ? userEmail : 'Sign in'}</button><div className="size-8 rounded-full bg-foreground text-center text-xs leading-8 text-background">LM</div></div>
       </header>
