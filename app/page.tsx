@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ArrowUp, Check, ChevronDown, Clock3, FileText, FolderOpen, Menu, Paperclip, Plus, Search, Settings2, Sparkles, Terminal } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 
 const starterPrompts = ['Turn notes into a brief', 'Summarize a document', 'Plan a project', 'Explore capabilities']
 const activities = [
@@ -11,15 +12,35 @@ const activities = [
 ]
 
 type ChatMessage = { role: 'user' | 'assistant'; content: string }
+const supabase = createClient()
 
 export default function Home() {
   const [prompt, setPrompt] = useState('')
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [activeTab, setActiveTab] = useState<'activity' | 'capabilities'>('activity')
   const [showMenu, setShowMenu] = useState(false)
+  const [showAuth, setShowAuth] = useState(false)
+  const [authEmail, setAuthEmail] = useState('')
+  const [authPassword, setAuthPassword] = useState('')
+  const [authMessage, setAuthMessage] = useState('')
   const [attached, setAttached] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
+  const [userEmail, setUserEmail] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!supabase) return
+    supabase.auth.getUser().then(({ data }) => setUserEmail(data.user?.email ?? null))
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => setUserEmail(session?.user?.email ?? null))
+    return () => listener.subscription.unsubscribe()
+  }, [supabase])
+
+  async function authenticate(mode: 'signin' | 'signup') {
+    if (!supabase) return setAuthMessage('Supabase is not configured in this environment yet.')
+    const result = mode === 'signin' ? await supabase.auth.signInWithPassword({ email: authEmail, password: authPassword }) : await supabase.auth.signUp({ email: authEmail, password: authPassword, options: { emailRedirectTo: process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL ?? `${window.location.origin}/auth/callback` } })
+    setAuthMessage(result.error ? (mode === 'signin' ? 'Invalid email or password.' : result.error.message) : mode === 'signup' ? 'Check your email to confirm your account.' : 'Signed in. Conversations will be saved.')
+    if (result.data.user) setShowAuth(false)
+  }
 
   async function submitPrompt() {
     const content = prompt.trim()
@@ -31,6 +52,10 @@ export default function Home() {
     setIsLoading(true)
 
     try {
+      const { data: sessionData } = supabase ? await supabase.auth.getUser() : { data: { user: null } }
+      const currentUser = sessionData.user
+      const { data: conversation } = currentUser && supabase ? await supabase.from('conversations').insert({ user_id: currentUser.id, title: content.slice(0, 60) }).select('id').single() : { data: null }
+      if (currentUser && conversation) await supabase.from('messages').insert({ conversation_id: conversation.id, user_id: currentUser.id, role: 'user', content })
       const controller = new AbortController()
       const timeout = window.setTimeout(() => controller.abort(), 8000)
       const response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: nextMessages }), signal: controller.signal })
@@ -45,6 +70,7 @@ export default function Home() {
         answer += decoder.decode(value, { stream: true })
         setMessages([...nextMessages, { role: 'assistant', content: answer }])
       }
+      if (currentUser && conversation && answer && supabase) await supabase.from('messages').insert({ conversation_id: conversation.id, user_id: currentUser.id, role: 'assistant', content: answer })
     } catch (caught) {
       const fallback = `I’m ready to help with “${content}”. Tell me the outcome you want, and I’ll help shape it into a practical next step.`
       setMessages([...nextMessages, { role: 'assistant', content: fallback }])
@@ -61,8 +87,9 @@ export default function Home() {
           <button className="rounded-lg p-2 text-muted-foreground hover:bg-muted md:hidden" aria-label="Open menu" onClick={() => setShowMenu(!showMenu)}><Menu /></button>
           <div className="flex items-center gap-3"><div className="size-9 overflow-hidden rounded-xl bg-accent shadow-sm"><img src="/arten-face.png" alt="ARTEN character" className="size-full object-cover" /></div><div><div className="font-semibold tracking-tight">ARTEN</div><div className="text-[11px] text-muted-foreground">Intelligence workspace</div></div></div>
         </div>
-        <div className="flex items-center gap-2"><button className="hidden items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted md:flex"><Clock3 className="size-4" /> History</button><button className="rounded-lg p-2 text-muted-foreground hover:bg-muted" aria-label="Settings"><Settings2 className="size-4" /></button><div className="size-8 rounded-full bg-foreground text-center text-xs leading-8 text-background">LM</div></div>
+        <div className="flex items-center gap-2"><button className="hidden items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted md:flex"><Clock3 className="size-4" /> History</button><button className="rounded-lg p-2 text-muted-foreground hover:bg-muted" aria-label="Settings"><Settings2 className="size-4" /></button><button className="hidden rounded-lg px-3 py-2 text-xs text-muted-foreground hover:bg-muted md:block" onClick={() => setShowAuth(!showAuth)}>{userEmail ? userEmail : 'Sign in'}</button><div className="size-8 rounded-full bg-foreground text-center text-xs leading-8 text-background">LM</div></div>
       </header>
+      {showAuth && !userEmail && <div className="mx-auto flex max-w-[1440px] justify-end px-5 pt-3 md:px-8"><div className="flex w-full max-w-sm flex-col gap-2 rounded-xl border border-border bg-card p-3 shadow-sm"><input className="rounded-lg border border-border bg-transparent px-3 py-2 text-sm outline-none" aria-label="Account email" placeholder="Email" type="email" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} /><input className="rounded-lg border border-border bg-transparent px-3 py-2 text-sm outline-none" aria-label="Account password" placeholder="Password" type="password" value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} /><div className="flex gap-2"><button className="rounded-lg bg-foreground px-3 py-2 text-xs text-background" onClick={() => void authenticate('signin')}>Sign in</button><button className="rounded-lg border border-border px-3 py-2 text-xs" onClick={() => void authenticate('signup')}>Create account</button></div>{authMessage && <p className="text-xs text-muted-foreground">{authMessage}</p>}</div></div>}
 
       <div className="mx-auto flex max-w-[1440px]">
         <aside className={`${showMenu ? 'flex' : 'hidden'} absolute inset-x-0 top-16 z-10 min-h-[calc(100vh-4rem)] flex-col border-r border-border bg-background p-5 md:relative md:top-0 md:flex md:w-64 md:min-h-[calc(100vh-4rem)] md:bg-transparent`}>
