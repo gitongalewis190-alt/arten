@@ -67,6 +67,18 @@ button:disabled { cursor: default; }
 .auth-form input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(117,200,255,.12); }
 .primary-action { border: 0; border-radius: 999px; background: var(--primary); color: var(--primary-foreground); padding: .9rem 1rem; font-weight: 700; margin-top: .55rem; box-shadow: 0 10px 24px rgba(255,255,255,.12); }
 .primary-action:hover { transform: translateY(-1px); }
-.auth-message { margin-top: 1rem; color: var(--muted-foreground); font-size: .78rem; line-height: 1.5; }
+.auth-message { margin-top: 1rem; display: flex; align-items: flex-start; gap: .55rem; color: var(--muted-foreground); font-size: .78rem; line-height: 1.5; }
+.auth-message-error { color: #ffb2bd; }
+.auth-message-success { color: #a9e8c3; }
+.auth-status-dot { width: .45rem; height: .45rem; flex: 0 0 auto; margin-top: .35rem; border-radius: 999px; background: var(--accent); box-shadow: 0 0 14px currentColor; }
+.auth-message-error .auth-status-dot { background: #ff7183; }
+.auth-message-success .auth-status-dot { background: #73e5a0; }
+.password-wrap { position: relative; }
+.password-wrap input { width: 100%; padding-right: 4.5rem; }
+.password-toggle { position: absolute; right: .7rem; top: 50%; transform: translateY(-50%); border: 0; background: transparent; color: var(--accent); font-size: .72rem; }
+.auth-spinner { width: .85rem; height: .85rem; display: inline-block; margin-right: .45rem; border: 2px solid rgba(7,16,29,.25); border-top-color: var(--primary-foreground); border-radius: 50%; vertical-align: -2px; animation: auth-spin .8s linear infinite; }
+.auth-resend { border: 0; background: transparent; color: var(--accent); font-size: .75rem; margin-top: .75rem; padding: 0; }
+.auth-resend:disabled { opacity: .5; }
+@keyframes auth-spin { to { transform: rotate(360deg); } }
 .auth-switch { border: 0; background: transparent; color: var(--accent); font-size: .78rem; margin-top: 1.5rem; padding: 0; }
 @media (prefers-reduced-motion: no-preference) { .spatial-panel, button { transition: transform .25s ease, box-shadow .25s ease, background .25s ease, border-color .25s ease; } .spatial-panel:hover { transform: translateY(-2px); } }
