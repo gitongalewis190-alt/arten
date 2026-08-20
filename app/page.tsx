@@ -31,7 +31,10 @@ export default function Home() {
     setIsLoading(true)
 
     try {
-      const response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: nextMessages }) })
+      const controller = new AbortController()
+      const timeout = window.setTimeout(() => controller.abort(), 8000)
+      const response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: nextMessages }), signal: controller.signal })
+      window.clearTimeout(timeout)
       if (!response.ok || !response.body) throw new Error((await response.json().catch(() => null))?.error || 'ARTEN could not respond.')
       const reader = response.body.getReader()
       const decoder = new TextDecoder()
@@ -43,8 +46,9 @@ export default function Home() {
         setMessages([...nextMessages, { role: 'assistant', content: answer }])
       }
     } catch (caught) {
-      setMessages(nextMessages)
-      setError(caught instanceof Error ? caught.message : 'Something went wrong.')
+      const fallback = `I’m ready to help with “${content}”. Tell me the outcome you want, and I’ll help shape it into a practical next step.`
+      setMessages([...nextMessages, { role: 'assistant', content: fallback }])
+      setError('Free fallback mode is active. Connect a funded model later for live AI responses.')
     } finally {
       setIsLoading(false)
     }
