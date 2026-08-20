@@ -10,17 +10,44 @@ const activities = [
   { title: 'Ready to help', meta: 'Complete', icon: Check },
 ]
 
+type ChatMessage = { role: 'user' | 'assistant'; content: string }
+
 export default function Home() {
   const [prompt, setPrompt] = useState('')
-  const [message, setMessage] = useState('')
+  const [messages, setMessages] = useState<ChatMessage[]>([])
   const [activeTab, setActiveTab] = useState<'activity' | 'capabilities'>('activity')
   const [showMenu, setShowMenu] = useState(false)
   const [attached, setAttached] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState('')
 
-  function submitPrompt() {
-    if (!prompt.trim()) return
-    setMessage(prompt.trim())
+  async function submitPrompt() {
+    const content = prompt.trim()
+    if (!content || isLoading) return
+    const nextMessages: ChatMessage[] = [...messages, { role: 'user', content }]
+    setMessages([...nextMessages, { role: 'assistant', content: '' }])
     setPrompt('')
+    setError('')
+    setIsLoading(true)
+
+    try {
+      const response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: nextMessages }) })
+      if (!response.ok || !response.body) throw new Error((await response.json().catch(() => null))?.error || 'ARTEN could not respond.')
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let answer = ''
+      while (true) {
+        const { value, done } = await reader.read()
+        if (done) break
+        answer += decoder.decode(value, { stream: true })
+        setMessages([...nextMessages, { role: 'assistant', content: answer }])
+      }
+    } catch (caught) {
+      setMessages(nextMessages)
+      setError(caught instanceof Error ? caught.message : 'Something went wrong.')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -35,17 +62,17 @@ export default function Home() {
 
       <div className="mx-auto flex max-w-[1440px]">
         <aside className={`${showMenu ? 'flex' : 'hidden'} absolute inset-x-0 top-16 z-10 min-h-[calc(100vh-4rem)] flex-col border-r border-border bg-background p-5 md:relative md:top-0 md:flex md:w-64 md:min-h-[calc(100vh-4rem)] md:bg-transparent`}>
-          <button className="mb-7 flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-left text-sm hover:bg-muted"><Plus className="size-4" /> New conversation</button>
+          <button className="mb-7 flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-left text-sm hover:bg-muted" onClick={() => setMessages([])}><Plus className="size-4" /> New conversation</button>
           <div className="mb-3 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Workspace</div>
           <nav className="flex flex-col gap-1 text-sm">{['Conversations', 'Artifacts', 'Memory'].map((item, i) => <button key={item} className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-left ${i === 0 ? 'bg-muted font-medium' : 'text-muted-foreground hover:bg-muted'}`}><span className="size-1.5 rounded-full bg-current opacity-50" />{item}</button>)}</nav>
           <div className="mt-auto rounded-xl border border-border bg-muted/50 p-4"><div className="mb-2 flex items-center gap-2 text-sm font-medium"><Sparkles className="size-4" />ARTEN is ready</div><p className="text-xs leading-5 text-muted-foreground">A calm place to think, create, and move work forward.</p></div>
         </aside>
 
         <section className="flex min-h-[calc(100vh-4rem)] min-w-0 flex-1 flex-col">
-          <div className="flex items-center justify-between border-b border-border/60 px-5 py-3 md:px-10"><div className="text-sm text-muted-foreground">New conversation</div><button className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">General <ChevronDown className="size-3" /></button></div>
+          <div className="flex items-center justify-between border-b border-border/60 px-5 py-3 md:px-10"><div className="text-sm text-muted-foreground">{messages.length ? 'Active conversation' : 'New conversation'}</div><button className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">General <ChevronDown className="size-3" /></button></div>
           <div className="flex flex-1 flex-col px-5 py-10 md:px-16 lg:px-24"><div className="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center">
-            {message ? <div className="mb-10"><div className="ml-auto max-w-xl rounded-2xl bg-foreground px-5 py-4 text-sm leading-6 text-background">{message}</div><div className="mt-8 flex gap-4"><div className="size-8 shrink-0 overflow-hidden rounded-xl"><img src="/arten-face.png" alt="ARTEN" className="size-full object-cover" /></div><div><p className="text-sm font-medium">ARTEN</p><p className="mt-2 text-sm leading-6 text-muted-foreground">I&apos;m ready to work through that with you. This workspace will keep the context, decisions, and useful artifacts together.</p></div></div></div> : <div className="text-center"><div className="mx-auto mb-7 size-24 overflow-hidden rounded-[28px] shadow-[0_16px_40px_rgba(95,173,225,0.25)]"><img src="/arten-face.png" alt="ARTEN character" className="size-full object-cover" /></div><p className="mb-3 text-xs font-medium uppercase tracking-[0.22em] text-muted-foreground">Your intelligence workspace</p><h1 className="text-balance text-4xl font-semibold tracking-[-0.04em] md:text-6xl">What are we building<br className="hidden md:block" /> today?</h1><p className="mx-auto mt-5 max-w-md text-pretty text-sm leading-6 text-muted-foreground">Bring a question, a rough idea, or a complex task. ARTEN helps you shape it into something clear.</p><div className="mt-8 flex flex-wrap justify-center gap-2">{starterPrompts.map((item) => <button key={item} onClick={() => setPrompt(item)} className="rounded-full border border-border px-4 py-2 text-xs text-muted-foreground transition hover:border-foreground hover:text-foreground">{item}</button>)}</div></div>}
-            <div className="mt-12 rounded-2xl border border-border bg-card p-2 shadow-sm"><div className="flex items-end gap-2"><textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && e.keyCode !== 229) { e.preventDefault(); submitPrompt() } }} placeholder="Ask ARTEN anything..." className="min-h-14 flex-1 resize-none bg-transparent px-3 py-3 text-sm outline-none placeholder:text-muted-foreground" aria-label="Ask ARTEN anything" /><button onClick={() => setAttached(!attached)} className={`rounded-xl p-3 ${attached ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted'}`} aria-label="Attach file"><Paperclip className="size-4" /></button><button onClick={submitPrompt} className="rounded-xl bg-foreground p-3 text-background transition hover:opacity-80" aria-label="Send message"><ArrowUp className="size-4" /></button></div><div className="flex items-center justify-between px-3 pb-1 pt-2 text-[11px] text-muted-foreground"><span>{attached ? '1 file attached' : 'Shift + Enter for a new line'}</span><span>ARTEN 1.0</span></div></div>
+            {messages.length ? <div className="mb-10 flex flex-col gap-8">{messages.map((item, index) => <div key={`${item.role}-${index}`} className={item.role === 'user' ? 'ml-auto max-w-xl rounded-2xl bg-foreground px-5 py-4 text-sm leading-6 text-background' : 'flex gap-4'}>{item.role === 'assistant' && <div className="size-8 shrink-0 overflow-hidden rounded-xl"><img src="/arten-face.png" alt="ARTEN" className="size-full object-cover" /></div>}<div>{item.role === 'assistant' && <p className="text-sm font-medium">ARTEN</p>}<p className={item.role === 'assistant' ? 'mt-2 whitespace-pre-wrap text-sm leading-6 text-muted-foreground' : ''}>{item.content || (isLoading ? 'Thinking…' : '')}</p></div></div>)}{error && <p className="text-sm text-destructive">{error}</p>}</div> : <div className="text-center"><div className="mx-auto mb-7 size-24 overflow-hidden rounded-[28px] shadow-[0_16px_40px_rgba(95,173,225,0.25)]"><img src="/arten-face.png" alt="ARTEN character" className="size-full object-cover" /></div><p className="mb-3 text-xs font-medium uppercase tracking-[0.22em] text-muted-foreground">Your intelligence workspace</p><h1 className="text-balance text-4xl font-semibold tracking-[-0.04em] md:text-6xl">What are we building<br className="hidden md:block" /> today?</h1><p className="mx-auto mt-5 max-w-md text-pretty text-sm leading-6 text-muted-foreground">Bring a question, a rough idea, or a complex task. ARTEN helps you shape it into something clear.</p><div className="mt-8 flex flex-wrap justify-center gap-2">{starterPrompts.map((item) => <button key={item} onClick={() => setPrompt(item)} className="rounded-full border border-border px-4 py-2 text-xs text-muted-foreground transition hover:border-foreground hover:text-foreground">{item}</button>)}</div></div>}
+            <div className="mt-12 rounded-2xl border border-border bg-card p-2 shadow-sm"><div className="flex items-end gap-2"><textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && e.keyCode !== 229) { e.preventDefault(); submitPrompt() } }} placeholder="Ask ARTEN anything..." className="min-h-14 flex-1 resize-none bg-transparent px-3 py-3 text-sm outline-none placeholder:text-muted-foreground" aria-label="Ask ARTEN anything" disabled={isLoading} /><button onClick={() => setAttached(!attached)} className={`rounded-xl p-3 ${attached ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted'}`} aria-label="Attach file"><Paperclip className="size-4" /></button><button onClick={submitPrompt} className="rounded-xl bg-foreground p-3 text-background transition hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50" aria-label="Send message" disabled={isLoading || !prompt.trim()}><ArrowUp className="size-4" /></button></div><div className="flex items-center justify-between px-3 pb-1 pt-2 text-[11px] text-muted-foreground"><span>{isLoading ? 'ARTEN is thinking…' : attached ? '1 file attached' : 'Shift + Enter for a new line'}</span><span>ARTEN 1.0</span></div></div>
           </div></div>
         </section>
 
